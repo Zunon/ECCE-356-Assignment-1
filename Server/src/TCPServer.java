@@ -16,7 +16,7 @@ public class TCPServer {
 	public static final SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm");
 	Scanner netIn = null;
 	PrintWriter netOut = null;
-	String myName = InetAddress.getLocalHost().getHostAddress();
+	String myName = InetAddress.getLocalHost().toString();
 	String clientName = null;
 
 	static class CloseHook extends Thread {
