@@ -34,7 +34,12 @@ public class TCPServer {
 
 	public void newConnection() throws IOException {
 		System.out.println("Waiting to be contacted by a Client...");
-		socket = port.accept();
+		try {
+			socket = port.accept();
+		} catch (SocketException e) {
+			System.out.println("Server closed while waiting for message!");
+			return;
+		}
 		System.out.println("A connection is established with a Client");
 		DataInputStream inStream = new DataInputStream(socket.getInputStream());
 		DataOutputStream outStream = new DataOutputStream(socket.getOutputStream());

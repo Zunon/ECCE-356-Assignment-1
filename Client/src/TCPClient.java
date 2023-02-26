@@ -1,5 +1,6 @@
 import java.net.*;
 import java.io.*;
+import java.util.NoSuchElementException;
 import java.util.Scanner;
 
 public class TCPClient {
@@ -19,10 +20,17 @@ public class TCPClient {
 		netIn = new Scanner(new InputStreamReader(inStream));
 		netOut = new PrintWriter(outStream, true);
 	}
-	public String sendAndReceive(String prompt) throws IOException {
+	public String sendAndReceive(String prompt) {
 		String message = prompt(prompt);
 		netOut.println(message);
-		return (netIn.nextLine());
+		String response = null;
+		try {
+			response = netIn.nextLine();
+		} catch (NoSuchElementException e) {
+			System.out.println("Server has closed the connection!");
+			close();
+		}
+		return (response);
 	}
 	public String prompt(String message) {
 		System.out.print(message);
