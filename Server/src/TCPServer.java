@@ -3,16 +3,17 @@ import java.io.*;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.NoSuchElementException;
 import java.util.Scanner;
 
 public class TCPServer {
-	public static final int PORT = 10001;
+	public static final int PORT = 45632;
 	Socket socket = null;
 	ServerSocket port = new ServerSocket(PORT);
 	public static final SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm");
 	Scanner netIn = null;
 	PrintWriter netOut = null;
-	String myName = InetAddress.getLocalHost().toString();
+	String myName = InetAddress.getLocalHost().getHostAddress();
 	String clientName = null;
 
 	public TCPServer() throws IOException {
@@ -41,17 +42,40 @@ public class TCPServer {
 		}
 	}
 
-	public static void main(String[] args) {
+	public void receiveAndConfirm() throws IOException {
+		String msg = netIn.nextLine();
+		System.out.println(msg + " is received from Client " + clientName);
+		netOut.println(formatter.format(new Timestamp(new Date().getTime())));
+	}
+
+	public void fileSizeComms() throws IOException {
+		String msg = netIn.nextLine();
+		System.out.println("Client requested the size of the file " + msg + ".");
+		File file = new File(msg);
+		if (!file.exists()) {
+			System.out.println("File not found!");
+			netOut.println("File not found!");
+		} else netOut.println(new File(msg).length());
+	}
+
+	public void mainLoop() throws IOException {
+		newConnection();
 		try {
-			TCPServer server = new TCPServer();
-			server.newConnection();
-			String msg = server.netIn.nextLine();
-			System.out.println(msg + " is received from Client " + server.clientName);
-			server.netOut.println(formatter.format(new Timestamp(new Date().getTime())));
-			msg = server.netIn.nextLine();
-			System.out.println("Client requested the size of the file " + msg + ".");
-			server.netOut.println(new File(msg).length());
-			server.close();
+			while (netIn.hasNextLine()) {
+				receiveAndConfirm();
+				fileSizeComms();
+			}
+		} catch (NoSuchElementException e) {
+			System.out.println("Client disconnected.");
+		}
+		mainLoop();
+	}
+
+	public static void main(String[] args) {
+		TCPServer server = null;
+		try {
+			server = new TCPServer();
+			server.mainLoop();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

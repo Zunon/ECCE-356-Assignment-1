@@ -3,7 +3,7 @@ import java.io.*;
 import java.util.Scanner;
 
 public class TCPClient {
-	public static final int PORT = 10001;
+	public static final int PORT = 45632;
 	Scanner stdIn = new Scanner(System.in);
 	Scanner netIn = null;
 	PrintWriter netOut = null;
@@ -26,18 +26,25 @@ public class TCPClient {
 	}
 	public String prompt(String message) {
 		System.out.print(message);
-		return (stdIn.nextLine());
+		String str = stdIn.nextLine();
+		if (str.equals("quit"))
+			close();
+		return (str);
 	}
 
 	public void close() {
+		System.out.println("Shutting down client...");
 		try {
-			socket.close();
+			if (socket != null) {
+				socket.close();
+				netIn.close();
+				netOut.close();
+			}
 			stdIn.close();
-			netIn.close();
-			netOut.close();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+		System.exit(0);
 	}
 	public static void main(String[] args) {
 		try {
@@ -45,7 +52,10 @@ public class TCPClient {
 			String response = client.sendAndReceive( "Write any message: ");
 			System.out.println("Message received successfully at " + response);
 			response = client.sendAndReceive("Enter the file name with extension to get the size: ");
-			System.out.println("The File size is: " + response + " Bytes.");
+			if (response.equals("File not found!"))
+				System.out.println("File not found!");
+			else
+				System.out.println("The File size is: " + response + " Bytes.");
 			client.close();
 		} catch (UnknownHostException e) {
 			System.out.println("Unknown host: " + e.getMessage());
