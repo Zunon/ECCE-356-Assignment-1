@@ -16,6 +16,18 @@ public class TCPServer {
 	String myName = InetAddress.getLocalHost().getHostAddress();
 	String clientName = null;
 
+	static class CloseHook extends Thread {
+		TCPServer server;
+
+		CloseHook(TCPServer server) {
+			this.server = server;
+		}
+
+		public void run() {
+			server.close();
+			System.out.println("Shutting down server!");
+		}
+	}
 	public TCPServer() throws IOException {
 		System.out.println("✉️ TCP Server starting at host: " + myName);
 	}
@@ -33,10 +45,12 @@ public class TCPServer {
 
 	public void close() {
 		try {
-			socket.close();
 			port.close();
-			netIn.close();
-			netOut.close();
+			if (socket != null) {
+				socket.close();
+				netIn.close();
+				netOut.close();
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -67,6 +81,13 @@ public class TCPServer {
 			}
 		} catch (NoSuchElementException e) {
 			System.out.println("Client disconnected.");
+			netIn.close();
+			netIn = null;
+			netOut.close();
+			netOut = null;
+			socket.close();
+			socket = null;
+			clientName = null;
 		}
 		mainLoop();
 	}
@@ -75,6 +96,7 @@ public class TCPServer {
 		TCPServer server = null;
 		try {
 			server = new TCPServer();
+			Runtime.getRuntime().addShutdownHook(new CloseHook(server));
 			server.mainLoop();
 		} catch (IOException e) {
 			e.printStackTrace();

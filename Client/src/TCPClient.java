@@ -32,6 +32,17 @@ public class TCPClient {
 		return (str);
 	}
 
+	public void mainLoop() throws IOException {
+		String response = sendAndReceive( "Write any message: ");
+		System.out.println("Message received successfully at " + response);
+		response = sendAndReceive("Enter the file name with extension to get the size: ");
+		if (response.equals("File not found!"))
+			System.out.println("File not found!");
+		else
+			System.out.println("The File size is: " + response + " Bytes.");
+		mainLoop();
+	}
+
 	public void close() {
 		System.out.println("Shutting down client...");
 		try {
@@ -49,14 +60,7 @@ public class TCPClient {
 	public static void main(String[] args) {
 		try {
 			TCPClient client = new TCPClient();
-			String response = client.sendAndReceive( "Write any message: ");
-			System.out.println("Message received successfully at " + response);
-			response = client.sendAndReceive("Enter the file name with extension to get the size: ");
-			if (response.equals("File not found!"))
-				System.out.println("File not found!");
-			else
-				System.out.println("The File size is: " + response + " Bytes.");
-			client.close();
+			client.mainLoop();
 		} catch (UnknownHostException e) {
 			System.out.println("Unknown host: " + e.getMessage());
 		} catch (ConnectException e){
