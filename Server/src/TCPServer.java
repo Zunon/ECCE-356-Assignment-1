@@ -61,13 +61,13 @@ public class TCPServer {
 		}
 	}
 
-	public void receiveAndConfirm() throws IOException {
+	public void receiveAndConfirm() {
 		String msg = netIn.nextLine();
 		System.out.println(msg + " is received from Client " + clientName);
 		netOut.println(formatter.format(new Timestamp(new Date().getTime())));
 	}
 
-	public void fileSizeComms() throws IOException {
+	public void fileSizeComms() {
 		String msg = netIn.nextLine();
 		System.out.println("Client requested the size of the file " + msg + ".");
 		File file = new File(msg);
@@ -94,15 +94,14 @@ public class TCPServer {
 			socket = null;
 			clientName = null;
 		}
-		mainLoop();
 	}
 
 	public static void main(String[] args) {
-		TCPServer server = null;
 		try {
-			server = new TCPServer();
+			TCPServer server = new TCPServer();
 			Runtime.getRuntime().addShutdownHook(new CloseHook(server));
-			server.mainLoop();
+			while (true)
+				server.mainLoop();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
