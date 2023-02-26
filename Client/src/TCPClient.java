@@ -1,15 +1,17 @@
-import java.net.*;
 import java.io.*;
+import java.net.ConnectException;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.net.UnknownHostException;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 
 public class TCPClient {
 	public static final int PORT = 45632;
 	Scanner stdIn = new Scanner(System.in);
-	Scanner netIn = null;
-	PrintWriter netOut = null;
-	Socket socket = null;
-	String serverName = null;
+	Scanner netIn;
+	PrintWriter netOut;
+	Socket socket;
 	String myName = InetAddress.getLocalHost().toString();
 	TCPClient() throws IOException {
 		System.out.println("TCP Client starting on host: " + myName);
@@ -48,7 +50,6 @@ public class TCPClient {
 			System.out.println("File not found!");
 		else
 			System.out.println("The File size is: " + response + " Bytes.");
-		mainLoop();
 	}
 
 	public void close() {
@@ -68,7 +69,8 @@ public class TCPClient {
 	public static void main(String[] args) {
 		try {
 			TCPClient client = new TCPClient();
-			client.mainLoop();
+			while (true)
+				client.mainLoop();
 		} catch (UnknownHostException e) {
 			System.out.println("Unknown host: " + e.getMessage());
 		} catch (ConnectException e){
