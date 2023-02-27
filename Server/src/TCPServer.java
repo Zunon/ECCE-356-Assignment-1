@@ -12,15 +12,15 @@ import java.util.Scanner;
 public class TCPServer {
 	public static final int PORT = 45632;
 	Socket socket = null;
-	ServerSocket port = new ServerSocket(PORT);
+	final ServerSocket port = new ServerSocket(PORT);
 	public static final SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm");
 	Scanner netIn = null;
 	PrintWriter netOut = null;
-	String myName = InetAddress.getLocalHost().toString();
+	final String myName = InetAddress.getLocalHost().toString();
 	String clientName = null;
 
 	static class CloseHook extends Thread {
-		TCPServer server;
+		final TCPServer server;
 
 		CloseHook(TCPServer server) {
 			this.server = server;
@@ -103,6 +103,7 @@ public class TCPServer {
 		try {
 			TCPServer server = new TCPServer();
 			Runtime.getRuntime().addShutdownHook(new CloseHook(server));
+			//noinspection InfiniteLoopStatement
 			while (true)
 				server.mainLoop();
 		} catch (IOException e) {

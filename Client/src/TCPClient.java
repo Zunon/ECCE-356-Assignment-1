@@ -8,11 +8,11 @@ import java.util.Scanner;
 
 public class TCPClient {
 	public static final int PORT = 45632;
-	Scanner stdIn = new Scanner(System.in);
+	final Scanner stdIn = new Scanner(System.in);
 	Scanner netIn;
 	PrintWriter netOut;
 	Socket socket;
-	String myName = InetAddress.getLocalHost().toString();
+	final String myName = InetAddress.getLocalHost().toString();
 	TCPClient() throws IOException {
 		System.out.println("TCP Client starting on host: " + myName);
 		String serverName = prompt("Type name of TCP Server: ");
@@ -42,7 +42,7 @@ public class TCPClient {
 		return (str);
 	}
 
-	public void mainLoop() throws IOException {
+	public void mainLoop() {
 		String response = sendAndReceive( "Write any message: ");
 		System.out.println("Message received successfully at " + response);
 		response = sendAndReceive("Enter the file name with extension to get the size: ");
@@ -69,13 +69,10 @@ public class TCPClient {
 	public static void main(String[] args) {
 		try {
 			TCPClient client = new TCPClient();
+			//noinspection InfiniteLoopStatement
 			while (true)
 				client.mainLoop();
-		} catch (UnknownHostException e) {
-			System.out.println("Unknown host: " + e.getMessage());
-		} catch (ConnectException e){
-			System.out.println("Connection refused by host!");
-		}catch (IOException e) {
+		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
