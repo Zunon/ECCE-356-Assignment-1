@@ -7,7 +7,7 @@ SRCSRV  := Server/src/TCPServer.java
 SRCCLI  := Client/src/TCPClient.java
 RUN     := java
 
-.PHONY: all clean re runserver runclient server client
+.PHONY: all clean re runserver runclient
 
 all: $(SERVER) $(CLIENT)
 
@@ -22,8 +22,8 @@ clean:
 
 re: clean all
 
-runserver:
+runserver: $(SERVER)
 	@$(RUN) TCPServer || true
 
-runclient:
+runclient: $(CLIENT)
 	@$(RUN) TCPClient || true
