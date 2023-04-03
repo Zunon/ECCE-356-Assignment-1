@@ -98,6 +98,10 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 					System.out.println("File received at: " + response.getBodyAsString());
 				}
 			}
+			client.send("FIN");
+			client.receive();
+			client.send("ACK");
+			System.out.println("Terminated successfully, exiting...");
 		} catch (SocketException e) {
 			System.err.println("Socket Error: " + e.getMessage());
 		} catch (IOException e) {
