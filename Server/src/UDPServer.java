@@ -8,8 +8,6 @@ public class UDPServer implements AutoCloseable {
 	public static final int PORT = 45632; // The port number to connect to.
 	final DatagramSocket serverSocket = new DatagramSocket(PORT); // The socket to connect to the client.
 	DatagramPacket receivePacket = null; // The packet to receive data from the client.
-	byte[] sendData = new byte[1024]; // The output buffer
-	byte[] receiveData = new byte[1024]; // The input buffer
 	final InetAddress serverAddress = InetAddress.getLocalHost(); // The name of the server.
 	InetAddress clientAddress = null; // The name of the client.
 	int clientPort = 0; // The port number of the client.
@@ -36,6 +34,7 @@ public class UDPServer implements AutoCloseable {
 	}
 
 	public String receive() {
+		byte[] receiveData = new byte[1024];
 		receivePacket = new DatagramPacket(receiveData, receiveData.length);
 		try {
 			serverSocket.receive(receivePacket);
@@ -47,22 +46,17 @@ public class UDPServer implements AutoCloseable {
 		return (new String(receivePacket.getData()).trim());
 	}
 
-	void ackTimestamp() {
-		String timestamp = new Date().toString();
-		sendData = timestamp.getBytes();
-		DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, clientAddress, clientPort);
-		try {
-			serverSocket.send(sendPacket);
-		} catch (IOException error) {
-			System.err.println("I/O Error sending packet: " + error.getMessage());
-		}
-	}
-
 	void resFileSize(String fileName) {
 		File file = new File(fileName);
 		long fileSize = file.length();
 		String fileSizeString = Long.toString(fileSize);
-		sendData = fileSizeString.getBytes();
+		send(fileSizeString);
+	}
+
+	void send(String message) {
+		byte[] sendData;
+
+		sendData = message.getBytes();
 		DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, clientAddress, clientPort);
 		try {
 			serverSocket.send(sendPacket);
@@ -73,8 +67,8 @@ public class UDPServer implements AutoCloseable {
 
 	public void mainLoop() {
 		String message = receive();
-		ackTimestamp();
 		System.out.println(message + " message is received from Client [" + clientAddress.getHostName() + "]..");
+		send(new Date().toString());
 		String fileName = receive();
 		System.out.println("Client requested the size of the file " + fileName);
 		resFileSize(fileName);

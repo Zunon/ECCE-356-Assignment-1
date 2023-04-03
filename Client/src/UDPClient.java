@@ -9,8 +9,6 @@ public class UDPClient implements AutoCloseable {
 	InetAddress serverAddress = null; // The address of the server.
 	String serverName = null; // The name of the server.
 	Scanner stdin = new Scanner(System.in);
-	byte[] sendData = new byte[1024]; // The output buffer
-	byte[] receiveData = new byte[1024]; // The input buffer
 
 	public UDPClient() throws SocketException, UnknownHostException {
 		System.out.println("UDP Client starting on host: " + clientAddress.getHostName() + ".");
@@ -35,6 +33,8 @@ public class UDPClient implements AutoCloseable {
 	}
 
 	public void send(String message) {
+		byte[] sendData;
+
 		sendData = message.getBytes();
 		DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, PORT);
 		try {
@@ -45,6 +45,8 @@ public class UDPClient implements AutoCloseable {
 	}
 
 	public String receive() {
+		byte[] receiveData = new byte[1024];
+
 		DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
 		try {
 			clientSocket.receive(receivePacket);
