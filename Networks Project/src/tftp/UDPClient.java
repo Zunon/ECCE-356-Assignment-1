@@ -25,8 +25,7 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 				System.err.println("Unknown host, please try again.");
 			} catch (SocketTimeoutException error) {
 				System.err.println("Server response timed out!");
-			} catch (IllegalArgumentException error) {
-				System.err.println("Error while connecting: " + error.getMessage());
+				System.exit(0);
 			}
 		}
 	}
