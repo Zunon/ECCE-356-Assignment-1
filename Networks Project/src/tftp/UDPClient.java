@@ -1,7 +1,8 @@
 package tftp;
 
-import java.io.IOException;
+import java.io.*;
 import java.net.*;
+import java.util.Date;
 import java.util.Scanner;
 
 public class UDPClient extends TFTPHost implements AutoCloseable {
@@ -10,6 +11,7 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 	InetAddress serverAddress = null; // The address of the server.
 	String serverName = null; // The name of the server.
 	Scanner stdin = new Scanner(System.in);
+	FileInputStream fileReader = null;
 
 	public UDPClient() throws SocketException, UnknownHostException {
 		System.out.println("UDP Client starting on host: " + clientAddress.getHostName() + ".");
@@ -30,8 +32,9 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 	}
 
 	@Override
-	public void close() {
+	public void close() throws IOException {
 		clientSocket.close();
+		if (fileReader != null) fileReader.close();
 	}
 
 	String getInput(String prompt) {
@@ -47,31 +50,59 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 		send("ACK");
 	}
 
-	public void send(String message) {
+	public void send(String message) throws SocketTimeoutException {
 		send(message, serverAddress, PORT, clientSocket);
 	}
 
-	public String receive() {
+	public String receive() throws SocketTimeoutException {
 		return (new String(receive(clientSocket).getData()).trim());
 	}
 
-	TFTPMessage buildRequest() throws IllegalArgumentException {
+	TFTPMessage buildRequest() throws IllegalArgumentException, IOException {
 		String type = getInput("Enter the type of transfer: ");
 		String name = getInput("Enter the name of file to be transferred: ");
 		return switch (type.toUpperCase()) {
-			case "GET" -> new TFTPMessage(clientAddress, TFTPMessageType.GTRQ, name, 0, (byte[]) null, (short) 0);
-			case "PUT" -> new TFTPMessage(clientAddress, TFTPMessageType.PTRQ, name, 0, (byte[]) null, (short) 0);
+			case "GET" -> new TFTPMessage(clientAddress, TFTPMessageType.GTRQ, name, ++sequenceNumber, null, (short) 0);
+			case "PUT" -> {
+				File file = new File(name);
+				short length = 0;
+				if (!file.exists()) throw new IllegalArgumentException("File does not exist");
+				length = (short) file.length();
+				fileReader = new FileInputStream(file);
+				byte[] body = fileReader.readAllBytes();
+				yield new TFTPMessage(clientAddress, TFTPMessageType.PTRQ, name, ++sequenceNumber, body, length);
+			}
 			default -> throw new IllegalArgumentException("Invalid request type");
 		};
 	}
 
 	public static void main(String[] args) {
 		try (UDPClient client = new UDPClient()) {
-			client.buildRequest();
+			TFTPMessage message = client.buildRequest();
+			client.send(message.toString());
+			TFTPMessage response = new TFTPMessage(client.receive());
+			switch (message.getMessageType()) {
+				case GTRQ -> {
+					File receivedFile = new File(response.getFileName());
+						try (FileOutputStream fileWriter = new FileOutputStream(receivedFile)) {
+							fileWriter.write(message.getBody());
+						} catch (IOException e) {
+							throw new RuntimeException(e);
+						}
+						System.out.println("Received file: " + message.getFileName());
+						System.out.println("File size: " + message.getBody().length + " bytes");
+						byte[] timestamp = new Date().toString().trim().getBytes();
+						client.send(new TFTPMessage(client.clientAddress, TFTPMessageType.RESP, message.getFileName(), message.getSequenceNumber() + 1, timestamp, (short)timestamp.length).toString());
+				}
+				case PTRQ -> {
+					System.out.println("File sent successfully!");
+					System.out.println("File received at: " + response.getBodyAsString());
+				}
+			}
 		} catch (SocketException e) {
 			System.err.println("Socket Error: " + e.getMessage());
-		} catch (UnknownHostException e) {
-			System.err.println("Unknown Host Error: " + e.getMessage());
+		} catch (IOException e) {
+			System.err.println("I/O Error: " + e.getMessage());
 		}
 	}
 }
