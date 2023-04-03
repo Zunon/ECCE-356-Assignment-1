@@ -84,14 +84,14 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 				case GTRQ -> {
 					File receivedFile = new File(response.getFileName());
 						try (FileOutputStream fileWriter = new FileOutputStream(receivedFile)) {
-							fileWriter.write(message.getBody());
+							fileWriter.write(response.getBody());
 						} catch (IOException e) {
 							throw new RuntimeException(e);
 						}
-						System.out.println("Received file: " + message.getFileName());
-						System.out.println("File size: " + message.getBody().length + " bytes");
+						System.out.println("Received file: " + response.getFileName());
+						System.out.println("File size: " + response.getBody().length + " bytes");
 						byte[] timestamp = new Date().toString().trim().getBytes();
-						client.send(new TFTPMessage(client.clientAddress, TFTPMessageType.RESP, message.getFileName(), message.getSequenceNumber() + 1, timestamp, (short)timestamp.length).toString());
+						client.send(new TFTPMessage(client.clientAddress, TFTPMessageType.RESP, response.getFileName(), message.getSequenceNumber() + 1, timestamp, (short)timestamp.length).toString());
 				}
 				case PTRQ -> {
 					System.out.println("File sent successfully!");
