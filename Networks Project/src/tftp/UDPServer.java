@@ -1,16 +1,26 @@
+package tftp;
 
 import java.io.*;
 import java.net.*;
 import java.util.Date;
 import java.lang.Long;
+import java.util.Objects;
 
-public class UDPServer implements AutoCloseable {
-	public static final int PORT = 45632; // The port number to connect to.
+public class UDPServer extends TFTPHost implements AutoCloseable {
 	final DatagramSocket serverSocket = new DatagramSocket(PORT); // The socket to connect to the client.
-	DatagramPacket receivePacket = null; // The packet to receive data from the client.
 	final InetAddress serverAddress = InetAddress.getLocalHost(); // The name of the server.
 	InetAddress clientAddress = null; // The name of the client.
 	int clientPort = 0; // The port number of the client.
+
+	@Override
+	void connect() throws IllegalArgumentException, SocketException, SocketTimeoutException {
+		String response = receive();
+		if (!response.equals("SYN")) throw new IllegalArgumentException("Expected SYN!");
+		serverSocket.setSoTimeout(16000);
+		send("SYNACK");
+		response = receive();
+		if (!response.equals("ACK")) throw new IllegalArgumentException("Expected ACK!");
+	}
 
 	static class CloseHook extends Thread {
 		final UDPServer server; // The server to be closed.
@@ -34,44 +44,26 @@ public class UDPServer implements AutoCloseable {
 	}
 
 	public String receive() {
-		byte[] receiveData = new byte[1024];
-		receivePacket = new DatagramPacket(receiveData, receiveData.length);
-		try {
-			serverSocket.receive(receivePacket);
-		} catch (IOException error) {
-			System.err.println("I/O Error receiving packet: " + error.getMessage());
-		}
-		clientAddress = receivePacket.getAddress();
-		clientPort = receivePacket.getPort();
-		return (new String(receivePacket.getData()).trim());
-	}
-
-	void resFileSize(String fileName) {
-		File file = new File(fileName);
-		long fileSize = file.length();
-		String fileSizeString = Long.toString(fileSize);
-		send(fileSizeString);
+		DatagramPacket receipt = receive(serverSocket);
+		clientAddress = receipt.getAddress();
+		clientPort = receipt.getPort();
+		return (new String(receipt.getData()).trim());
 	}
 
 	void send(String message) {
-		byte[] sendData;
-
-		sendData = message.getBytes();
-		DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, clientAddress, clientPort);
-		try {
-			serverSocket.send(sendPacket);
-		} catch (IOException error) {
-			System.err.println("I/O Error sending packet: " + error.getMessage());
-		}
+		send(message, clientAddress, clientPort, serverSocket);
 	}
 
 	public void mainLoop() {
-		String message = receive();
-		System.out.println(message + " message is received from Client [" + clientAddress.getHostName() + "]..");
-		send(new Date().toString());
-		String fileName = receive();
-		System.out.println("Client requested the size of the file " + fileName);
-		resFileSize(fileName);
+		// 3-way handshake
+		try {
+			connect();
+		} catch(SocketException | IllegalArgumentException | SocketTimeoutException error) {
+			System.out.println("Connection Failed!");
+			return;
+		}
+		// receive respond loop
+		// terminate on timeout or fin handshake
 	}
 
 	@Override
