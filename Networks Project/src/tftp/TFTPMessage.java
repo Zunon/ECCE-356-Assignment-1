@@ -70,5 +70,5 @@ public class TFTPMessage {
 						+ fileName + "\r\n" + sequenceNumber + "\r\n"
 						+ length + "\r\n\r\n"
 						+ bodyEncoded;
-	}
+	} // Address|Type|Filename|SequenceNumber|Length||Body
 }

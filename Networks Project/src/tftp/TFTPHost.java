@@ -17,6 +17,7 @@ public abstract class TFTPHost {
 			System.err.println("I/O Error receiving packet: " + error.getMessage());
 		}
 		if (receivePacket.getAddress() == null) throw new SocketTimeoutException("Timed out waiting for packet.");
+		System.out.println("Packet Received");
 		return receivePacket;
 	}
 

@@ -63,6 +63,7 @@ public class UDPServer extends TFTPHost implements AutoCloseable {
 		// 3-way handshake
 		try {
 			connect();
+			System.out.println("Client connected [" + clientAddress + "]");
 		} catch(SocketException | IllegalArgumentException | SocketTimeoutException error) {
 			System.out.println("Connection Failed!");
 			serverSocket.setSoTimeout(0);
