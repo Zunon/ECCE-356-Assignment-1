@@ -1,5 +1,6 @@
 package tftp;
 
+import javax.xml.crypto.Data;
 import java.io.*;
 import java.net.*;
 import java.util.Date;
@@ -14,12 +15,22 @@ public class UDPServer extends TFTPHost implements AutoCloseable {
 	FileInputStream fileReader = null; // The file reader for the file to be sent.
 
 	@Override
-	void connect() throws IllegalArgumentException, SocketException, SocketTimeoutException {
-		String response = receive();
+	void connect() throws IllegalArgumentException, IOException {
+		byte[] receiveData = new byte[4096];
+		DatagramPacket responseData = new DatagramPacket(receiveData, receiveData.length);
+		serverSocket.receive(responseData);
+		String response = new String(responseData.getData()).trim();
 		if (!response.equals("SYN")) throw new IllegalArgumentException("Expected SYN!");
-		serverSocket.setSoTimeout(16000);
-		send("SYNACK");
-		response = receive();
+		clientAddress = responseData.getAddress();
+		clientPort = responseData.getPort();
+		serverSocket.setSoTimeout(60000);
+		serverSocket.send(new DatagramPacket("SYNACK".getBytes(), 6, clientAddress, clientPort));
+		receiveData = new byte[4096];
+		responseData = new DatagramPacket(receiveData, receiveData.length);
+		for (int i = 1; i <= 3 && responseData.getAddress() == null; i++)
+			serverSocket.receive(responseData);
+		if (responseData.getAddress() == null) throw new SocketTimeoutException("Connection failed!");
+		response = new String(responseData.getData()).trim();
 		if (!response.equals("ACK")) throw new IllegalArgumentException("Expected ACK!");
 	}
 
@@ -81,16 +92,29 @@ public class UDPServer extends TFTPHost implements AutoCloseable {
 				}
 				TFTPMessage message = new TFTPMessage(request);
 				sequenceNumber = message.getSequenceNumber();
+				System.out.println("Message Type: " + message.getMessageType());
 				switch (message.getMessageType()) {
 					case PTRQ -> {
 						File receivedFile = new File(message.getFileName());
+						if (receivedFile.exists()) {
+							receivedFile = new File(message.getFileName() + ".temp");
+						}
+						long totalBytes = message.getLength();
 						try (FileOutputStream fileWriter = new FileOutputStream(receivedFile)) {
-							fileWriter.write(message.getBody());
+							ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+							outputStream.write(message.getBody());
+							message = new TFTPMessage(receive());
+							while (message.getMessageType() == TFTPMessageType.DATA && message.getLength() > 0) {
+								outputStream.write(message.getBody());
+								totalBytes += message.getLength();
+								message = new TFTPMessage(receive());
+							}
+							fileWriter.write(outputStream.toByteArray());
 						} catch (IOException e) {
 							throw new RuntimeException(e);
 						}
 						System.out.println("Received file: " + message.getFileName());
-						System.out.println("File size: " + message.getBody().length + " bytes");
+						System.out.println("File size: " + totalBytes + " bytes");
 						byte[] timestamp = new Date().toString().trim().getBytes();
 						send(new TFTPMessage(serverAddress, TFTPMessageType.RESP, message.getFileName(), message.getSequenceNumber() + 1, timestamp, (short)timestamp.length).toString());
 					}
@@ -98,7 +122,8 @@ public class UDPServer extends TFTPHost implements AutoCloseable {
 						File requestedFile = new File(message.getFileName());
 						if (!requestedFile.exists()) {
 							System.err.println("File not found: " + message.getFileName());
-							return;
+							send(new TFTPMessage(serverAddress, TFTPMessageType.RESP, message.getFileName(), ++sequenceNumber, "File not found!".getBytes(), (short) 15).toString());
+							continue;
 						}
 						fileReader = new FileInputStream(requestedFile);
 						short length = (short) requestedFile.length();
@@ -109,6 +134,12 @@ public class UDPServer extends TFTPHost implements AutoCloseable {
 						System.out.println("File size: " + length + " bytes");
 						System.out.println("Received at: " + new TFTPMessage(receive()).getBodyAsString());
 					}
+					case RESP -> {
+						if (message.getBodyAsString().equals("FIN")) {
+							send(new TFTPMessage(serverAddress, TFTPMessageType.RESP, "DISCONNECTING", ++sequenceNumber, "FINACK".getBytes(), (short) 6).toString());
+							done = true;
+						}
+					}
 					default -> throw new IllegalArgumentException("Invalid message type!");
 				}
 			}
@@ -117,7 +148,6 @@ public class UDPServer extends TFTPHost implements AutoCloseable {
 		}
 		// terminate on timeout or fin handshake
 		if (done) {
-			send("FINACK");
 			receive();
 		}
 		serverSocket.setSoTimeout(0);

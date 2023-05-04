@@ -15,7 +15,7 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 
 	public UDPClient() throws SocketException, UnknownHostException {
 		System.out.println("UDP Client starting on host: " + clientAddress.getHostName() + ".");
-		clientSocket.setSoTimeout(16000); // Set the timeout to be 16 seconds
+		clientSocket.setSoTimeout(60000); // Set the timeout to be 16 seconds
 		while (serverAddress == null) {
 			serverName = getInput("Type name of UDP server: ");
 			try {
@@ -25,6 +25,9 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 				System.err.println("Unknown host, please try again.");
 			} catch (SocketTimeoutException error) {
 				System.err.println("Server response timed out!");
+				System.exit(0);
+			} catch (IOException e) {
+				System.err.println(e.getMessage());
 				System.exit(0);
 			}
 		}
@@ -38,15 +41,22 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 
 	String getInput(String prompt) {
 		System.out.print(prompt);
-		return stdin.nextLine();
+		String line = stdin.nextLine();
+		if (line.equals("quit")) return null;
+		return line;
 	}
 
 	@Override
-	void connect() throws SocketTimeoutException {
-		send("SYN");
-		String response = receive();
+	void connect() throws SocketTimeoutException, IOException {
+		clientSocket.send(new DatagramPacket("SYN".getBytes(), 3, serverAddress, TFTPHost.PORT));
+		byte[] receiveData = new byte[4096];
+		DatagramPacket responseData = new DatagramPacket(receiveData, receiveData.length);
+		for (int i = 1; i <= 3 && responseData.getAddress() == null; i++)
+			clientSocket.receive(responseData);
+		if (responseData.getAddress() == null) throw new SocketTimeoutException("Connection failed!");
+		String response = new String(responseData.getData()).trim();
 		if (!response.equals("SYNACK")) throw new IllegalArgumentException("Expected SYNACK");
-		send("ACK");
+		clientSocket.send(new DatagramPacket("ACK".getBytes(), 3, serverAddress, TFTPHost.PORT));
 	}
 
 	public void send(String message) throws SocketTimeoutException {
@@ -59,30 +69,58 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 
 	TFTPMessage buildRequest() throws IllegalArgumentException, IOException {
 		String type = getInput("Enter the type of transfer: ");
+		if (type == null) return null;
 		String name = getInput("Enter the name of file to be transferred: ");
+		if (name == null) return null;
 		return switch (type.toUpperCase()) {
 			case "GET" -> new TFTPMessage(clientAddress, TFTPMessageType.GTRQ, name, ++sequenceNumber, null, (short) 0);
 			case "PUT" -> {
 				File file = new File(name);
-				short length = 0;
 				if (!file.exists()) throw new IllegalArgumentException("File does not exist");
-				length = (short) file.length();
 				fileReader = new FileInputStream(file);
-				byte[] body = fileReader.readAllBytes();
-				yield new TFTPMessage(clientAddress, TFTPMessageType.PTRQ, name, ++sequenceNumber, body, length);
+				byte[] body = fileReader.readNBytes((int) Math.min(file.length(), 1024));
+				yield new TFTPMessage(clientAddress, TFTPMessageType.PTRQ, name, ++sequenceNumber, body, (short) Math.min(file.length(), 1024));
 			}
 			default -> throw new IllegalArgumentException("Invalid request type");
 		};
 	}
 
+	public void sendFile(TFTPMessage message) throws IOException {
+		File file = new File(message.getFileName());
+		long remainder = Math.max(1024, file.length()) - 1024;
+		System.out.println("Sending file: " + message.getFileName());
+		System.out.println("File size: " + file.length() + " bytes");
+		while (remainder >= 0) {
+			System.out.println("Remaining bytes: " + remainder);
+			byte[] body = fileReader.readNBytes((int)Math.min(remainder, 1024));
+			TFTPMessage newMessage = new TFTPMessage(clientAddress, TFTPMessageType.DATA, message.getFileName(), ++sequenceNumber, body, (short) Math.min(remainder, 1024));
+			send(newMessage.toString());
+			if (remainder == 0) break;
+			remainder = Math.max(1024, remainder) - 1024;
+		}
+	}
+
 	public static void main(String[] args) {
 		try (UDPClient client = new UDPClient()) {
-			TFTPMessage message = client.buildRequest();
-			client.send(message.toString());
-			TFTPMessage response = new TFTPMessage(client.receive());
-			switch (message.getMessageType()) {
-				case GTRQ -> {
-					File receivedFile = new File(response.getFileName());
+			boolean done = false;
+			while (!done) {
+				TFTPMessage message = client.buildRequest();
+				if (message == null) {
+					done = true;
+					continue;
+				}
+				client.send(message.toString());
+				if (message.getMessageType() == TFTPMessageType.PTRQ) {
+					client.sendFile(message);
+				}
+				TFTPMessage response = new TFTPMessage(client.receive());
+				switch (message.getMessageType()) {
+					case GTRQ -> {
+						if (response.getMessageType() == TFTPMessageType.RESP && response.getBodyAsString().equals("File not found!")) {
+							System.out.println("File not found!");
+							continue;
+						}
+						File receivedFile = new File(response.getFileName());
 						try (FileOutputStream fileWriter = new FileOutputStream(receivedFile)) {
 							fileWriter.write(response.getBody());
 						} catch (IOException e) {
@@ -91,16 +129,17 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 						System.out.println("Received file: " + response.getFileName());
 						System.out.println("File size: " + response.getBody().length + " bytes");
 						byte[] timestamp = new Date().toString().trim().getBytes();
-						client.send(new TFTPMessage(client.clientAddress, TFTPMessageType.RESP, response.getFileName(), message.getSequenceNumber() + 1, timestamp, (short)timestamp.length).toString());
-				}
-				case PTRQ -> {
-					System.out.println("File sent successfully!");
-					System.out.println("File received at: " + response.getBodyAsString());
+						client.send(new TFTPMessage(client.clientAddress, TFTPMessageType.RESP, response.getFileName(), message.getSequenceNumber() + 1, timestamp, (short) timestamp.length).toString());
+					}
+					case PTRQ -> {
+						System.out.println("File sent successfully!");
+						System.out.println("File received at: " + response.getBodyAsString());
+					}
 				}
 			}
-			client.send("FIN");
+			client.send(new TFTPMessage(client.clientAddress, TFTPMessageType.RESP, "DISCONNECTING", ++client.sequenceNumber, "FIN".getBytes(), (short) 3).toString());
 			client.receive();
-			client.send("ACK");
+			client.send(new TFTPMessage(client.clientAddress, TFTPMessageType.RESP, "DISCONNECTING", ++client.sequenceNumber, "KCA".getBytes(), (short) 3).toString());
 			System.out.println("Terminated successfully, exiting...");
 		} catch (SocketException e) {
 			System.err.println("Socket Error: " + e.getMessage());

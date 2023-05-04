@@ -61,7 +61,16 @@ public class TFTPMessage {
 	}
 
 	public String getBodyAsString() {
-		return new String(body);
+		if (body != null)
+			return new String(body);
+		return "";
+	}
+
+	public String pretty() {
+	return "{\n\tAddress: '" + hostAddress.getHostAddress() + "',\n\tType: " + messageType.toString() + ",\n\tFile: '"
+						+ fileName + "',\n\tSequence Number: " + sequenceNumber + ",\n\tBody Length: "
+						+ length + ",\n\tBody: \""
+						+ getBodyAsString() + "\"\n}";
 	}
 
 	public String toString() {
