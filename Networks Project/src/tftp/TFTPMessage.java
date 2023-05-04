@@ -1,5 +1,6 @@
 package tftp;
 
+import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Base64;
@@ -11,6 +12,7 @@ public class TFTPMessage {
 	int sequenceNumber;
 	short length;
 	byte[] body;
+	public int port;
 
 	public TFTPMessage(InetAddress hostAddress, TFTPMessageType messageType, String fileName, int sequenceNumber, byte[] body, short length) {
 		this.hostAddress = hostAddress;
@@ -19,6 +21,11 @@ public class TFTPMessage {
 		this.length = length;
 		this.fileName = fileName;
 		this.sequenceNumber = sequenceNumber;
+	}
+
+	public TFTPMessage(DatagramPacket packet) {
+		this(new String(packet.getData()).trim());
+		port = packet.getPort();
 	}
 
 	public TFTPMessage(String message) {
@@ -67,10 +74,10 @@ public class TFTPMessage {
 	}
 
 	public String pretty() {
-	return "{\n\tAddress: '" + hostAddress.getHostAddress() + "',\n\tType: " + messageType.toString() + ",\n\tFile: '"
-						+ fileName + "',\n\tSequence Number: " + sequenceNumber + ",\n\tBody Length: "
-						+ length + ",\n\tBody: \""
-						+ getBodyAsString() + "\"\n}";
+		if (body != null && new String(body).trim().equals("ACK")) return null;
+		return "{Address: '" + hostAddress.getHostAddress() + "', Type: " + messageType.toString() + ", File: '"
+						+ fileName + "', Sequence Number: " + sequenceNumber + ", Body Length: "
+						+ length + "}";
 	}
 
 	public String toString() {

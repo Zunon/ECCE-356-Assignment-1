@@ -15,7 +15,7 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 
 	public UDPClient() throws SocketException, UnknownHostException {
 		System.out.println("UDP Client starting on host: " + clientAddress.getHostName() + ".");
-		clientSocket.setSoTimeout(60000); // Set the timeout to be 16 seconds
+		clientSocket.setSoTimeout(60000); // Set the timeout to be 60 seconds
 		while (serverAddress == null) {
 			serverName = getInput("Type name of UDP server: ");
 			try {
@@ -25,6 +25,7 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 				System.err.println("Unknown host, please try again.");
 			} catch (SocketTimeoutException error) {
 				System.err.println("Server response timed out!");
+				System.err.println(error.getMessage());
 				System.exit(0);
 			} catch (IOException e) {
 				System.err.println(e.getMessage());
@@ -48,23 +49,29 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 
 	@Override
 	void connect() throws SocketTimeoutException, IOException {
+		clientSocket.setSoTimeout(200); // Set the timeout to be 3 seconds for acknowledgements
 		clientSocket.send(new DatagramPacket("SYN".getBytes(), 3, serverAddress, TFTPHost.PORT));
 		byte[] receiveData = new byte[4096];
 		DatagramPacket responseData = new DatagramPacket(receiveData, receiveData.length);
 		for (int i = 1; i <= 3 && responseData.getAddress() == null; i++)
-			clientSocket.receive(responseData);
+			try {
+					clientSocket.receive(responseData);
+			} catch (SocketTimeoutException error) {}
 		if (responseData.getAddress() == null) throw new SocketTimeoutException("Connection failed!");
 		String response = new String(responseData.getData()).trim();
 		if (!response.equals("SYNACK")) throw new IllegalArgumentException("Expected SYNACK");
 		clientSocket.send(new DatagramPacket("ACK".getBytes(), 3, serverAddress, TFTPHost.PORT));
+		clientSocket.setSoTimeout(60000);
 	}
 
-	public void send(String message) throws SocketTimeoutException {
+	public void send(String message) throws SocketTimeoutException, SocketException {
+		clientSocket.setSoTimeout(200); // Set the timeout to be 3 seconds for acknowledgements
 		send(message, serverAddress, PORT, clientSocket);
+		clientSocket.setSoTimeout(60000);
 	}
 
-	public String receive() throws SocketTimeoutException {
-		return (new String(receive(clientSocket).getData()).trim());
+	public TFTPMessage receive() throws SocketTimeoutException {
+		return receive(clientSocket);
 	}
 
 	TFTPMessage buildRequest() throws IllegalArgumentException, IOException {
@@ -91,7 +98,6 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 		System.out.println("Sending file: " + message.getFileName());
 		System.out.println("File size: " + file.length() + " bytes");
 		while (remainder >= 0) {
-			System.out.println("Remaining bytes: " + remainder);
 			byte[] body = fileReader.readNBytes((int)Math.min(remainder, 1024));
 			TFTPMessage newMessage = new TFTPMessage(clientAddress, TFTPMessageType.DATA, message.getFileName(), ++sequenceNumber, body, (short) Math.min(remainder, 1024));
 			send(newMessage.toString());
@@ -113,7 +119,7 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 				if (message.getMessageType() == TFTPMessageType.PTRQ) {
 					client.sendFile(message);
 				}
-				TFTPMessage response = new TFTPMessage(client.receive());
+				TFTPMessage response = client.receive();
 				switch (message.getMessageType()) {
 					case GTRQ -> {
 						if (response.getMessageType() == TFTPMessageType.RESP && response.getBodyAsString().equals("File not found!")) {
@@ -121,15 +127,27 @@ public class UDPClient extends TFTPHost implements AutoCloseable {
 							continue;
 						}
 						File receivedFile = new File(response.getFileName());
+						if (receivedFile.exists()) {
+							receivedFile = new File(response.getFileName() + ".client_received");
+						}
+						long totalBytes = response.getLength();
 						try (FileOutputStream fileWriter = new FileOutputStream(receivedFile)) {
-							fileWriter.write(response.getBody());
+							ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+							outputStream.write(response.getBody());
+							response = client.receive();
+							while (response.getMessageType() == TFTPMessageType.DATA && response.getLength() > 0) {
+								outputStream.write(response.getBody());
+								totalBytes += response.getLength();
+								response = client.receive();
+							}
+							fileWriter.write(outputStream.toByteArray());
 						} catch (IOException e) {
 							throw new RuntimeException(e);
 						}
 						System.out.println("Received file: " + response.getFileName());
-						System.out.println("File size: " + response.getBody().length + " bytes");
+						System.out.println("File size: " + totalBytes + " bytes");
 						byte[] timestamp = new Date().toString().trim().getBytes();
-						client.send(new TFTPMessage(client.clientAddress, TFTPMessageType.RESP, response.getFileName(), message.getSequenceNumber() + 1, timestamp, (short) timestamp.length).toString());
+						client.send(new TFTPMessage(client.clientAddress, TFTPMessageType.RESP, response.getFileName(), ++client.sequenceNumber, timestamp, (short) timestamp.length).toString());
 					}
 					case PTRQ -> {
 						System.out.println("File sent successfully!");
