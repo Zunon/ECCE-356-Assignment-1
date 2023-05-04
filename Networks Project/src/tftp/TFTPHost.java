@@ -61,7 +61,7 @@ public abstract class TFTPHost {
 			System.out.println("Sending packet: " + new TFTPMessage(message).pretty());
 		DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, address, port);
 		try {
-//			if (Math.random() > 0.001) // Randomly don't send
+//			if (Math.random() > 0.1) // Randomly don't send
 				socket.send(sendPacket);
 			sequenceNumber = new TFTPMessage(message).sequenceNumber;
 			if (!(new TFTPMessage(message).getBodyAsString().trim().equals("ACK"))) {

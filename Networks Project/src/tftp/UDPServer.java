@@ -9,7 +9,7 @@ import java.util.Objects;
 
 public class UDPServer extends TFTPHost implements AutoCloseable {
 	final DatagramSocket serverSocket = new DatagramSocket(PORT); // The socket to connect to the client.
-	final InetAddress serverAddress = InetAddress.getLocalHost(); // The name of the server.
+	final InetAddress serverAddress = InetAddress.getByName("192.168.147.12"); // The name of the server.
 	InetAddress clientAddress = null; // The name of the client.
 	int clientPort = 0; // The port number of the client.
 	FileInputStream fileReader = null; // The file reader for the file to be sent.
